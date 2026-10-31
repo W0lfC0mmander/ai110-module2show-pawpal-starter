@@ -1,0 +1,90 @@
+classDiagram
+    %% Proposed design for adding pets, scheduling walks, and viewing today's tasks.
+    class PawPalsApp {
+        +Owner currentOwner
+        +addPet(name: String, species: String) Pet
+        +scheduleWalk(petId: int, startAt: DateTime, durationMinutes: int) ScheduledTask
+        +getTodaysTasks() List~ScheduledTask~
+    }
+
+    class Owner {
+        +int id
+        +String name
+        +List~Pet~ pets
+        +addPet(pet: Pet) void
+        +findPet(petId: int) Pet
+    }
+
+    class Pet {
+        +int id
+        +String name
+        +String species
+        +Date birthDate
+        +List~CareTask~ careTasks
+        +addCareTask(task: CareTask) void
+        +getCareTasks() List~CareTask~
+    }
+
+    class CareTask {
+        +int id
+        +String title
+        +int durationMinutes
+        +Priority priority
+        +TaskStatus status
+        +markComplete() void
+    }
+
+    class Walk {
+        +String location
+        +float distanceKm
+        +setLocation(location: String) void
+    }
+
+    class ScheduledTask {
+        +CareTask task
+        +DateTime startAt
+        +DateTime endAt
+        +String notes
+        +reschedule(startAt: DateTime) void
+        +isFor(date: Date) bool
+    }
+
+    class DailySchedule {
+        +Date date
+        +List~ScheduledTask~ tasks
+        +addTask(task: ScheduledTask) void
+        +getTasksFor(date: Date) List~ScheduledTask~
+        +getTodaysTasks() List~ScheduledTask~
+    }
+
+    class ScheduleService {
+        +scheduleWalk(pet: Pet, startAt: DateTime, durationMinutes: int) ScheduledTask
+        +getTodaysTasks(owner: Owner, today: Date) List~ScheduledTask~
+        +checkAvailability(startAt: DateTime, endAt: DateTime) bool
+    }
+
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
+    class TaskStatus {
+        <<enumeration>>
+        SCHEDULED
+        COMPLETE
+        SKIPPED
+    }
+
+    PawPalsApp --> Owner : manages
+    PawPalsApp --> ScheduleService : uses
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" o-- "0..*" CareTask : needs
+    CareTask <|-- Walk
+    CareTask --> Priority
+    CareTask --> TaskStatus
+    DailySchedule "1" *-- "0..*" ScheduledTask : contains
+    ScheduledTask --> CareTask : schedules
+    ScheduleService ..> DailySchedule : creates and queries
+    ScheduleService ..> Pet : schedules walk for
