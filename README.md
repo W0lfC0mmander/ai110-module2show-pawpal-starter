@@ -71,14 +71,18 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+PawPal+ provides these scheduling behaviors through `Scheduler` (also available as
+`ScheduleService`):
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | `Scheduler.organize_tasks` | Orders scheduled tasks by high, medium, then low priority across all pets. |
-| Filtering | `Scheduler.organize_tasks` | Excludes completed and skipped tasks from the active task list. |
-| Conflict handling | `Scheduler.schedule_task`, `DailySchedule.is_available` | Rejects overlapping tasks and tasks that exceed the owner's daily time budget. |
-| Recurring tasks | `Task.frequency` | Stores frequency metadata (for example, `daily` or `weekly`); recurring occurrences are not generated automatically. |
+| Feature | Method(s) | Behavior |
+|---------|-----------|----------|
+| Task sorting | `Scheduler.organize_tasks` | Returns scheduled tasks across all pets, ordered by high, medium, then low priority. Tasks with equal priority retain their original pet/task order. |
+| Task filtering | `Scheduler.filter_tasks` | Filters all owner tasks by status, pet name, or both. Pet names are trimmed and compared without regard to case; when both filters are provided, both must match. With no filters, all tasks are returned. |
+| Conflict detection and warnings | `Scheduler.detect_conflicts`, `Scheduler.schedule_task`, `ScheduledTask.warnings` | Detects strictly overlapping time ranges on the same day (touching endpoints are not conflicts) and records a warning naming each conflicting pet, task, and time range. Conflicts do not prevent scheduling. The Streamlit UI displays the warnings after scheduling. Comparing timezone-aware and timezone-naive times raises a `ValueError`. |
+| Availability checks | `Scheduler.check_availability`, `DailySchedule.is_available` | Reports whether a time range is free in the daily schedule. |
+| Scheduling validation and daily time budget | `Scheduler.schedule_task` | Requires the pet and task to belong to the owner, requires a positive duration, and disallows tasks that run past midnight. If adding a task would exceed the owner's configured daily time budget, scheduling is rejected with a `ValueError`. |
+| Recurring tasks | `Task.frequency`, `Scheduler.complete_task` | Completing a task with `frequency="daily"` or `"weekly"` (case-insensitive) creates and schedules a new task for the next day or week at the same time, preserving its task details and notes. The completed occurrence is marked complete. Other frequency values do not create another occurrence. |
+| Daily schedule ordering and lookup | `DailySchedule.add_task`, `Scheduler.get_todays_tasks` | Keeps a day's scheduled tasks ordered by start time and returns the tasks for the requested date. |
 
 ## 📸 Demo Walkthrough
 

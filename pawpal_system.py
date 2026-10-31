@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from enum import Enum
 from typing import Optional
@@ -117,6 +117,7 @@ class ScheduledTask:
     task: CareTask
     start_at: datetime
     notes: str = ""
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def end_at(self) -> datetime:
@@ -141,11 +142,15 @@ class DailySchedule:
     date: date
     tasks: list[ScheduledTask] = field(default_factory=list)
 
-    def add_task(self, task: ScheduledTask) -> None:
+    def add_task(
+        self, task: ScheduledTask, *, allow_conflicts: bool = False
+    ) -> None:
         """Add a scheduled task to the daily schedule if it fits."""
         if not task.is_for(self.date) or task.end_at.date() != self.date:
             raise ValueError("Scheduled task date must match the daily schedule.")
-        if not self.is_available(task.start_at, task.end_at):
+        if task.end_at <= task.start_at:
+            raise ValueError("Scheduled task end time must be after its start time.")
+        if not allow_conflicts and not self.is_available(task.start_at, task.end_at):
             raise ValueError("Scheduled task overlaps an existing task or has invalid times.")
         self.tasks.append(task)
         self.tasks.sort(key=lambda scheduled_task: scheduled_task.start_at)
@@ -183,6 +188,26 @@ class Scheduler:
             for task in pet.get_care_tasks()
         ]
 
+    def filter_tasks(
+        self,
+        owner: Owner,
+        status: Optional[TaskStatus] = None,
+        pet_name: Optional[str] = None,
+    ) -> list[tuple[Pet, CareTask]]:
+        """Return owner tasks matching the provided status and/or pet name."""
+        normalized_pet_name = (
+            pet_name.strip().casefold() if pet_name is not None else None
+        )
+        return [
+            (pet, task)
+            for pet, task in self.get_tasks(owner)
+            if (status is None or task.status is status)
+            and (
+                normalized_pet_name is None
+                or pet.name.strip().casefold() == normalized_pet_name
+            )
+        ]
+
     def organize_tasks(self, owner: Owner) -> list[tuple[Pet, CareTask]]:
         """Return all scheduled tasks ordered by priority."""
         priority_order = {
@@ -196,6 +221,46 @@ class Scheduler:
             if task.status is TaskStatus.SCHEDULED
         ]
         return sorted(tasks, key=lambda item: priority_order[item[1].priority])
+
+    def complete_task(
+        self, owner: Owner, scheduled_task: ScheduledTask
+    ) -> Optional[ScheduledTask]:
+        """Complete an occurrence and schedule the next daily or weekly one."""
+        pet = scheduled_task.pet
+        task = scheduled_task.task
+        schedule = owner.get_schedule_for(scheduled_task.start_at.date())
+        if not any(owned_pet is pet for owned_pet in owner.pets):
+            raise ValueError("Cannot complete a task for a pet not owned by this owner.")
+        if not any(existing_task is task for existing_task in pet.care_tasks):
+            raise ValueError("Care task must belong to the scheduled pet.")
+        if schedule is None or not any(
+            existing is scheduled_task for existing in schedule.tasks
+        ):
+            raise ValueError("Scheduled task is not registered in the owner's schedule.")
+        if task.completed:
+            return None
+
+        interval_days = {"daily": 1, "weekly": 7}.get(
+            task.frequency.strip().casefold()
+        )
+        if interval_days is None:
+            task.mark_complete()
+            return None
+
+        next_start_at = scheduled_task.start_at + timedelta(days=interval_days)
+        next_task_id = max((item.id for item in owner.get_all_tasks()), default=0) + 1
+        next_task = replace(task, id=next_task_id, status=TaskStatus.SCHEDULED)
+        pet.add_care_task(next_task)
+        try:
+            next_occurrence = self.schedule_task(
+                owner, pet, next_task, next_start_at, scheduled_task.notes
+            )
+        except ValueError:
+            pet.care_tasks.remove(next_task)
+            raise
+
+        task.mark_complete()
+        return next_occurrence
 
     def schedule_task(
         self,
@@ -217,8 +282,9 @@ class Scheduler:
         if schedule is None:
             schedule = DailySchedule(start_at.date())
         end_at = start_at + timedelta(minutes=task.duration_minutes)
-        if not self.check_availability(schedule, start_at, end_at):
-            raise ValueError("The requested time overlaps another scheduled task.")
+        if end_at.date() != start_at.date():
+            raise ValueError("Scheduled task must end on the same day it starts.")
+        warnings = self.detect_conflicts(owner, start_at, end_at)
 
         budget = owner.daily_time_budget_minutes
         if budget is not None and budget < 0:
@@ -227,9 +293,9 @@ class Scheduler:
         if budget is not None and scheduled_minutes + task.duration_minutes > budget:
             raise ValueError("The task exceeds the owner's daily time budget.")
 
-        scheduled_task = ScheduledTask(pet, task, start_at, notes)
+        scheduled_task = ScheduledTask(pet, task, start_at, notes, warnings)
         owner.daily_schedules[start_at.date()] = schedule
-        schedule.add_task(scheduled_task)
+        schedule.add_task(scheduled_task, allow_conflicts=True)
         return scheduled_task
 
     def get_todays_tasks(self, owner: Owner, today: date) -> list[ScheduledTask]:
@@ -242,6 +308,26 @@ class Scheduler:
     ) -> bool:
         """Return whether the requested slot does not overlap existing tasks."""
         return schedule.is_available(start_at, end_at)
+
+    def detect_conflicts(
+        self, owner: Owner, start_at: datetime, end_at: datetime
+    ) -> list[str]:
+        """Return warnings for tasks that overlap the requested time range."""
+        schedule = owner.get_schedule_for(start_at.date())
+        if schedule is None:
+            return []
+
+        warnings = []
+        for existing in schedule.tasks:
+            if (existing.start_at.utcoffset() is None) != (start_at.utcoffset() is None):
+                raise ValueError("Cannot compare timezone-aware and naive datetimes.")
+            if start_at < existing.end_at and existing.start_at < end_at:
+                warnings.append(
+                    f"Overlaps {existing.pet.name}'s task "
+                    f"'{existing.task.title}' ({existing.start_at:%H:%M}-"
+                    f"{existing.end_at:%H:%M})."
+                )
+        return warnings
 
 
 ScheduleService = Scheduler

@@ -72,7 +72,9 @@ classDiagram
     class Scheduler {
         +getTasks(owner: Owner) List~(Pet, Task)~
         +organizeTasks(owner: Owner) List~(Pet, Task)~
+        +detectConflicts(owner: Owner, startAt: DateTime, endAt: DateTime) List~String~
         +scheduleTask(owner: Owner, pet: Pet, task: Task, startAt: DateTime, notes: String) ScheduledTask
+        +completeTask(owner: Owner, scheduledTask: ScheduledTask) ScheduledTask?
         +getTodaysTasks(owner: Owner, today: Date) List~ScheduledTask~
         +checkAvailability(schedule: DailySchedule, startAt: DateTime, endAt: DateTime) bool
     }

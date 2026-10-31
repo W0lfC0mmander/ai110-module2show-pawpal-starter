@@ -20,7 +20,7 @@ The project calls for considering time, task priority, and owner preferences. Th
 
 **b. Tradeoffs**
 
-A reasonable first-version tradeoff would be to favor high-priority tasks over fitting every task into the plan. This helps make sure essential care is scheduled when the owner's time is limited, although lower-priority tasks may be left out. This is a proposed policy, not behavior implemented in the current starter app.
+The scheduler favors preserving a user's requested schedule over enforcing a conflict-free one: when two task time ranges overlap, whether they belong to the same pet or different pets, it still schedules both and attaches a warning describing the conflict. This keeps the program usable and makes the issue visible without silently dropping or moving care tasks, but it means the resulting schedule may be impractical and the owner must decide how to resolve the overlap. In contrast, exceeding the owner's daily time budget remains a hard error, and tasks that run past midnight are rejected. Recurring daily and weekly tasks are scheduled for the next occurrence at the same time; that occurrence can also carry a conflict warning. Priority currently affects how active tasks are listed, not how conflicts are automatically resolved.
 
 ---
 
