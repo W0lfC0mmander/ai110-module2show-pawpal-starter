@@ -1,0 +1,113 @@
+classDiagram
+    %% CareTask is an alias of Task; ScheduleService is an alias of Scheduler.
+    class PawPalsApp {
+        +Owner current_owner
+        +Scheduler schedule_service
+        +__init__(current_owner: Owner, schedule_service: Scheduler?) void
+        +add_pet(name: str, species: str) Pet
+        +schedule_task(pet_id: int, task: CareTask, start_at: datetime, notes: str) ScheduledTask
+        +get_todays_tasks() List~ScheduledTask~
+    }
+
+    class Owner {
+        +int id
+        +str name
+        +List~Pet~ pets
+        +Dict~date, DailySchedule~ daily_schedules
+        +int? daily_time_budget_minutes
+        +time? preferred_start_time
+        +add_pet(pet: Pet) void
+        +get_all_tasks() List~CareTask~
+        +find_pet(pet_id: int) Pet
+        +get_schedule_for(day: date) DailySchedule?
+        +get_or_create_schedule(day: date) DailySchedule
+    }
+
+    class Pet {
+        +int id
+        +str name
+        +str species
+        +date birth_date
+        +List~CareTask~ care_tasks
+        +add_care_task(task: CareTask) void
+        +get_care_tasks() List~CareTask~
+    }
+
+    class Task {
+        +int id
+        +str title
+        +int duration_minutes
+        +Priority priority
+        +TaskStatus status
+        +str description
+        +str frequency
+        +completed <<derived>>
+        +mark_complete() void
+    }
+
+    class Walk {
+        +str location
+        +float distance_km
+        +set_location(location: str) void
+    }
+
+    class ScheduledTask {
+        +Pet pet
+        +CareTask task
+        +datetime start_at
+        +str notes
+        +List~str~ warnings
+        +end_at <<derived from task duration>>
+        +reschedule(start_at: datetime) void
+        +is_for(day: date) bool
+    }
+
+    class DailySchedule {
+        +date date
+        +List~ScheduledTask~ tasks
+        +add_task(task: ScheduledTask, allow_conflicts: bool) void
+        +is_available(start_at: datetime, end_at: datetime) bool
+        +get_tasks_for(day: date) List~ScheduledTask~
+        +get_todays_tasks(today: date) List~ScheduledTask~
+    }
+
+    class Scheduler {
+        +get_tasks(owner: Owner) List~(Pet, CareTask)~
+        +filter_tasks(owner: Owner, status: TaskStatus?, pet_name: str?) List~(Pet, CareTask)~
+        +organize_tasks(owner: Owner) List~(Pet, CareTask)~
+        +complete_task(owner: Owner, scheduled_task: ScheduledTask) ScheduledTask?
+        +schedule_task(owner: Owner, pet: Pet, task: CareTask, start_at: datetime, notes: str) ScheduledTask
+        +get_todays_tasks(owner: Owner, today: date) List~ScheduledTask~
+        +check_availability(schedule: DailySchedule, start_at: datetime, end_at: datetime) bool
+        +detect_conflicts(owner: Owner, start_at: datetime, end_at: datetime) List~str~
+    }
+
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
+    class TaskStatus {
+        <<enumeration>>
+        SCHEDULED
+        COMPLETE
+        SKIPPED
+    }
+
+    PawPalsApp --> Owner : current_owner
+    PawPalsApp --> Scheduler : delegates scheduling and task queries
+    Owner "1" --> "0..*" Pet : registers
+    Owner "1" --> "0..*" DailySchedule : maps dates to
+    Pet "1" --> "0..*" Task : care_tasks
+    Task <|-- Walk
+    Task --> Priority : priority
+    Task --> TaskStatus : status
+    DailySchedule "1" --> "0..*" ScheduledTask : tasks
+    ScheduledTask --> Pet : for
+    ScheduledTask --> Task : schedules
+    Scheduler ..> Owner : reads pets and manages schedules
+    Scheduler ..> Pet : validates ownership and task membership
+    Scheduler ..> DailySchedule : creates, checks, and updates
+    Scheduler ..> ScheduledTask : creates and completes occurrences

@@ -78,18 +78,58 @@ else:
 
 if owner.pets and any(pet.care_tasks for pet in owner.pets):
     st.markdown("### Care Tasks")
-    st.table(
-        [
-            {
-                "Pet": pet.name,
-                "Task": task.title,
-                "Duration (min)": task.duration_minutes,
-                "Priority": task.priority.value,
-                "Status": task.status.value,
-            }
-            for pet, task in pawpal_app.schedule_service.get_tasks(owner)
-        ]
+    filter_col, pet_col = st.columns(2)
+    with filter_col:
+        selected_status = st.selectbox(
+            "Filter by status",
+            options=["All statuses", *[status.value.title() for status in TaskStatus]],
+        )
+    with pet_col:
+        selected_pet_name = st.selectbox(
+            "Filter by pet",
+            options=["All pets", *dict.fromkeys(pet.name for pet in owner.pets)],
+        )
+
+    status_filter = (
+        None
+        if selected_status == "All statuses"
+        else TaskStatus(selected_status.casefold())
     )
+    pet_name_filter = None if selected_pet_name == "All pets" else selected_pet_name
+    filtered_tasks = pawpal_app.schedule_service.filter_tasks(
+        owner, status=status_filter, pet_name=pet_name_filter
+    )
+    filtered_task_ids = {
+        (pet.id, task.id) for pet, task in filtered_tasks
+    }
+    priority_sorted_tasks = [
+        (pet, task)
+        for pet, task in pawpal_app.schedule_service.organize_tasks(owner)
+        if (pet.id, task.id) in filtered_task_ids
+    ]
+    other_filtered_tasks = [
+        (pet, task)
+        for pet, task in filtered_tasks
+        if task.status is not TaskStatus.SCHEDULED
+    ]
+    displayed_tasks = [*priority_sorted_tasks, *other_filtered_tasks]
+
+    if displayed_tasks:
+        st.caption("Scheduled tasks are sorted by priority: high, medium, then low.")
+        st.table(
+            [
+                {
+                    "Pet": pet.name,
+                    "Task": task.title,
+                    "Duration (min)": task.duration_minutes,
+                    "Priority": task.priority.value,
+                    "Status": task.status.value,
+                }
+                for pet, task in displayed_tasks
+            ]
+        )
+    else:
+        st.info("No care tasks match these filters.")
 
 st.divider()
 st.subheader("Scheduling a Task")
@@ -133,13 +173,21 @@ st.markdown("### Daily Schedule")
 view_date = st.date_input("View schedule for", value=date.today(), key="view_date")
 scheduled_tasks = pawpal_app.schedule_service.get_todays_tasks(owner, view_date)
 if scheduled_tasks:
+    for scheduled_task in scheduled_tasks:
+        for warning in scheduled_task.warnings:
+            st.warning(
+                f"{scheduled_task.pet.name} — {scheduled_task.task.title}: "
+                f"{warning}"
+            )
     st.table(
         [
             {
                 "Time": scheduled_task.start_at.strftime("%H:%M"),
+                "End": scheduled_task.end_at.strftime("%H:%M"),
                 "Pet": scheduled_task.pet.name,
                 "Task": scheduled_task.task.title,
                 "Duration (min)": scheduled_task.task.duration_minutes,
+                "Priority": scheduled_task.task.priority.value,
             }
             for scheduled_task in scheduled_tasks
         ]

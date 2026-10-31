@@ -95,12 +95,48 @@ PawPal+ provides these scheduling behaviors through `Scheduler` (also available 
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+The Streamlit app lets an owner manage pets and care tasks in one place. Update
+the owner name, add pets by name and species, and create care tasks with a title,
+duration, and priority. The Care Tasks table can be filtered by status and pet;
+scheduled tasks are displayed in high-, medium-, then low-priority order.
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+Try this example workflow:
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+1. Start the interface with `streamlit run app.py`. The app opens with Mochi
+   already added as a dog; use **Adding a Pet** to add another pet, such as Pip.
+2. Under **Add a Care Task**, choose a pet, enter a task title and duration,
+   select a priority, and click **Add task**. Repeat to add several tasks.
+3. Use the Care Tasks filters to view tasks by status, pet, or both.
+4. Under **Scheduling a Task**, choose a care task, date, and start time, then
+   click **Schedule task**. The app confirms the scheduled time and shows any
+   conflict warnings.
+5. In **Daily Schedule**, choose the date to see its tasks in start-time order,
+   along with each task's end time, pet, duration, and priority.
+
+The scheduler orders tasks in the daily schedule chronologically and task lists
+by priority (high, medium, then low). It detects overlapping time ranges and
+displays a warning naming the conflicting task, but still allows the task to be
+scheduled. Tasks whose time ranges only touch at an endpoint are not conflicts.
+
+Running `python main.py` prints the following terminal example. The schedule
+uses today's date, which is not printed:
+
+```text
+Warning: Overlaps Pip's task 'Breakfast' (08:00-08:15).
+Today's Schedule
+08:00 - Pip: Breakfast (15 min)
+08:00 - Mochi: Morning walk (30 min)
+17:00 - Mochi: Evening feeding (10 min)
+
+Active Tasks by Priority
+Mochi: Morning walk (high)
+Pip: Breakfast (medium)
+Mochi: Evening feeding (low)
+
+Completed Tasks
+Pip: Nail trim
+
+Tasks for Mochi
+Mochi: Evening feeding (scheduled)
+Mochi: Morning walk (scheduled)
+```
