@@ -1,9 +1,10 @@
 classDiagram
-    %% Proposed design for adding pets, scheduling walks, and viewing today's tasks.
+    %% Proposed design for adding pets, scheduling care tasks, and viewing daily plans.
     class PawPalsApp {
         +Owner currentOwner
+        +Scheduler schedule_service
         +addPet(name: String, species: String) Pet
-        +scheduleWalk(petId: int, startAt: DateTime, durationMinutes: int) ScheduledTask
+        +scheduleTask(petId: int, task: Task, startAt: DateTime, notes: String) ScheduledTask
         +getTodaysTasks() List~ScheduledTask~
     }
 
@@ -11,8 +12,14 @@ classDiagram
         +int id
         +String name
         +List~Pet~ pets
+        +Map~Date, DailySchedule~ dailySchedules
+        +int? dailyTimeBudgetMinutes
+        +Time? preferredStartTime
         +addPet(pet: Pet) void
+        +getAllTasks() List~Task~
         +findPet(petId: int) Pet
+        +getScheduleFor(day: Date) DailySchedule?
+        +getOrCreateSchedule(day: Date) DailySchedule
     }
 
     class Pet {
@@ -20,17 +27,20 @@ classDiagram
         +String name
         +String species
         +Date birthDate
-        +List~CareTask~ careTasks
-        +addCareTask(task: CareTask) void
-        +getCareTasks() List~CareTask~
+        +List~Task~ careTasks
+        +addCareTask(task: Task) void
+        +getCareTasks() List~Task~
     }
 
-    class CareTask {
+    class Task {
         +int id
         +String title
         +int durationMinutes
         +Priority priority
         +TaskStatus status
+        +String description
+        +String frequency
+        +completed <<derived>>
         +markComplete() void
     }
 
@@ -41,9 +51,10 @@ classDiagram
     }
 
     class ScheduledTask {
-        +CareTask task
+        +Pet pet
+        +Task task
         +DateTime startAt
-        +DateTime endAt
+        +DateTime endAt <<derived from task duration>>
         +String notes
         +reschedule(startAt: DateTime) void
         +isFor(date: Date) bool
@@ -53,14 +64,17 @@ classDiagram
         +Date date
         +List~ScheduledTask~ tasks
         +addTask(task: ScheduledTask) void
+        +isAvailable(startAt: DateTime, endAt: DateTime) bool
         +getTasksFor(date: Date) List~ScheduledTask~
-        +getTodaysTasks() List~ScheduledTask~
+        +getTodaysTasks(today: Date) List~ScheduledTask~
     }
 
-    class ScheduleService {
-        +scheduleWalk(pet: Pet, startAt: DateTime, durationMinutes: int) ScheduledTask
+    class Scheduler {
+        +getTasks(owner: Owner) List~(Pet, Task)~
+        +organizeTasks(owner: Owner) List~(Pet, Task)~
+        +scheduleTask(owner: Owner, pet: Pet, task: Task, startAt: DateTime, notes: String) ScheduledTask
         +getTodaysTasks(owner: Owner, today: Date) List~ScheduledTask~
-        +checkAvailability(startAt: DateTime, endAt: DateTime) bool
+        +checkAvailability(schedule: DailySchedule, startAt: DateTime, endAt: DateTime) bool
     }
 
     class Priority {
@@ -78,13 +92,15 @@ classDiagram
     }
 
     PawPalsApp --> Owner : manages
-    PawPalsApp --> ScheduleService : uses
+    PawPalsApp --> Scheduler : uses
     Owner "1" o-- "0..*" Pet : owns
-    Pet "1" o-- "0..*" CareTask : needs
-    CareTask <|-- Walk
-    CareTask --> Priority
-    CareTask --> TaskStatus
+    Owner "1" *-- "0..*" DailySchedule : owns schedules
+    Pet "1" o-- "0..*" Task : needs
+    Task <|-- Walk
+    Task --> Priority
+    Task --> TaskStatus
     DailySchedule "1" *-- "0..*" ScheduledTask : contains
-    ScheduledTask --> CareTask : schedules
-    ScheduleService ..> DailySchedule : creates and queries
-    ScheduleService ..> Pet : schedules walk for
+    ScheduledTask --> Task : schedules
+    ScheduledTask --> Pet : for
+    Scheduler ..> DailySchedule : creates and queries
+    Scheduler ..> Owner : schedules within owner's calendar
